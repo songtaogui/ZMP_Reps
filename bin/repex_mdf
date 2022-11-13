@@ -1,0 +1,924 @@
+#!/usr/bin/perl --
+=d
+					EEEEEE                    EEEEEEE
+					EE   EE	                  EE
+					EE   EE   EEEEEE  EEEEEE  EE       EE   EE
+					EEEEE	  EE  EE  EE  EE  EEEEE     EE EE
+					EE  EE    EEEEEE  EEEEEE  EE         EEE
+					EE   EE   EE      EE      EE        EE EE
+					EE    EE  EEEEEE  EE      EEEEEEE  EE   EE
+
+			Written by Gurusaran, Nov 10 2012.		In case of query, contact: satnamrsm@gmail.com
+			Updated by Dheeraj and Gurusaran: May 2013; April 29, 2014
+
+			##! by Guru on Jan 21 (test) added the line for the sake of degenerated program: Line number 746
+			##! by Guru on Feb 1 (test) added the following "\t$c" in the print statements of mirror and everted repeats, for the sake of degenerated program: Line number 778, 787, 796, 806, 816, 826		
+=cut
+
+use File::Basename;
+
+$sftwdir=dirname($0);
+
+for($arg=0;$arg<=$#ARGV;$arg++)
+{
+	if($ARGV[$arg] eq '-m')
+	{
+		$marcomolecule = $ARGV[$arg+1];
+		$m=1;
+	}
+
+	if($ARGV[$arg] eq '-o')
+	{
+		$outpre = $ARGV[$arg+1];
+		$o=1;
+	}
+
+	if($ARGV[$arg] eq '-t')
+	{
+		$type_of_repeat = $ARGV[$arg+1];
+		$t=1;
+	}
+
+	if($ARGV[$arg] eq '-l')
+	{
+		$min_repeat_length = $ARGV[$arg+1];
+		$l=1;
+	}
+
+	if($ARGV[$arg] eq '-s')
+	{
+		$spacer = $ARGV[$arg+1];
+		$s=1;
+	}
+
+	if($ARGV[$arg] eq '-c')
+	{
+		$class_of_repeat = $ARGV[$arg+1];
+		$cl=1;
+	}
+
+	if($ARGV[$arg] eq '-f')
+	{
+		$input_filename = $ARGV[$arg+1];
+		$f=1;		
+	}
+
+	if($ARGV[$arg] eq '-max')
+	{
+		$max=1;
+	}
+}
+
+if($m!=1)
+{
+	$marcomolecule = 'n';
+}
+
+if($o!=1)
+{
+	$outpre = 'repex_out';
+}
+
+if($t!=1)
+{
+	$type_of_repeat = 'i';
+}
+
+if($l!=1 && $marcomolecule eq 'n')
+{
+       $min_repeat_length = 20;
+}
+
+if($l!=1 && $marcomolecule eq 'p')
+{
+       $min_repeat_length = 4;
+}
+
+if($s!=1)
+{
+	$spacer = 'a';
+}
+
+if($cl!=1)
+{
+	$class_of_repeat = 'i';
+}
+
+$grep_result=grep(/help/,@ARGV);
+
+
+if(($grep_result>0) || ($ARGV[0]=~/^\s*$/))
+{
+	print "\nRepEx\n=====\n 
+
+Description:
+
+------------
+
+RepEx provides a state of the art software solutions to compute repeats in whole genomes
+or chromosomes and protein sequences.
+
+Usage:
+	repex [options]
+
+Options:
+-f	Input file path.
+-o	Output prefix, default: repex_out
+-m	Type of molecular sequence(s): DNA [n] or Protein [p] {Default: [n]}
+-t	Type of repeat to be extracted: Inverted [i] or Palindrome [ip] or Mirror [m] or
+	Everted [e] (Mirror and everted repeat doesn't exist in protein sequence(s), thus
+	-t m or -t e will not work for protein sequence(s)) {Default: [i]}
+-l	Minimum length of repeats to be extracted [positive integers]. (Caution !! Any lower
+	than around 15 can significantly increase the number of spurious matches and therefore
+	burst up the runtime) {Default: [20]}
+-s	Spacer intervals i.e., the number of bases or residues between the repeat pattern and 
+	its copy. All [a] or Local [l] (within 100 bases) or Global [g] (outside 100 bases) or 
+	Manual (For manual option, enter your length (x) of spacers preceding with appropriate 
+	letter (greater: g, lesser: l, equal: e) -s [gx or lx or ex]) {Default: [l] for DNA and 
+	[a] for proteins}
+-c	Class of repeat to be extracted: Identical [i] or Degenerative [d] or both [b]. 
+	{Default: [i]}
+";
+	exit;
+}
+
+if ($marcomolecule eq "p" || $marcomolecule eq "P")
+{
+	chomp $type_of_repeat;
+	if($type_of_repeat=~/[^diP]/i) 
+	{
+		print STDERR "\nTo extract repeats from protein sequence(s) please select for direct or Inverted: -t [d / i]\nFor further assistance please type RepEx --help\n\n";
+		exit;
+	}
+}
+
+if($marcomolecule eq "n" || $marcomolecule eq "N")
+{
+	chomp $type_of_repeat;
+	if($type_of_repeat=~/[^dime][^p]/i) 
+	{
+		print STDERR "\nTo extract repeats from DNA sequence(s) please select from Direct, Inverted, Mirror and Everted: -t [d / i / m / e]\nFor further assistance please type RepEx --help\n\n";
+		exit;
+	}
+}
+
+if($min_repeat_length=~/[-]|\b0\b/i) 
+{
+	print STDERR "\nPlease enter a valid natural number (N): -l [N]\nFor further assistance please type RepEx --help\n\n";
+	exit;
+}	
+
+
+chomp $input_filename;
+open(FILE,"$input_filename") || die("File not found: $input_filename");
+chomp $min_repeat_length;
+@array = <FILE>;
+close FILE;
+
+`rm -f $outpre.identical $outpre.similar`;
+
+open(OUTPUT,">>$outpre.identical") if($class_of_repeat eq 'i' || $class_of_repeat eq 'b');
+open(WRITE1,">>$outpre.similar") if($class_of_repeat eq 'd' || $class_of_repeat eq 'b');
+$i=0;
+
+while($array[$i])
+{
+
+	$sequence = "";
+	if($array[$i] =~ /^>/)
+	{
+		$fasta_header = $array[$i];
+		open(MUM_INPUT,"> $i.sequence");
+		open(MUM_INPUT1,"> $i.sequence_c");
+		print"$s";
+
+		$j=$i+1;
+		#$k=0;
+		while($array[$j])
+		{	
+			if($array[$j] =~ /^\w+/)
+			{
+				$sequence .= $array[$j];
+				chomp $sequence;
+			}
+
+			if( $array[$j+1] =~ /^(\s+)?$/  || $array[$j+1] =~ />/)
+			{
+				print"$array[$j+1]";
+				$length = length $sequence;		#print "\n\n$length\n\n";
+				print MUM_INPUT ">$i\n$sequence";	#print "$sequence\n";
+				if(($type_of_repeat eq 'm' && $marcomolecule eq 'n') || ( ($type_of_repeat eq 'i' || $type_of_repeat eq 'ip') && $marcomolecule eq 'p'))
+				{
+					
+					$reverse = reverse "$sequence";		#print "$reverse\n";
+					print MUM_INPUT1 ">$i\_c\n$reverse";
+				}
+
+				if( ($type_of_repeat eq 'i' || $type_of_repeat eq 'ip') && $marcomolecule eq 'n')
+				{
+					if($sequence =~ /^[A-Z]/)
+					{
+						$sequence=~tr/ATGC/TACG/;
+					}
+					else
+					{
+						$sequence=~tr/atgc/tacg/;
+					}
+
+					$reverse = reverse $sequence;
+					print MUM_INPUT1 ">$i\_c\n$reverse";
+					
+				}
+
+				if($type_of_repeat eq 'e' && $marcomolecule eq 'n')
+				{
+					$sequence=~tr/ATGCatgc/TACGtacg/;
+					print MUM_INPUT1 ">$i\_c\n$sequence";
+				}
+			
+				if ($marcomolecule eq "n")
+				{
+					if($max ==1)
+					{
+						@mummer_output = `$sftwdir/identical -maxmatch -n -l $min_repeat_length -s -L $i.sequence $i.sequence_c`;
+					}
+
+					else
+					{
+						@mummer_output = `$sftwdir/identical -maxmatch -n -l $min_repeat_length -s -L $i.sequence $i.sequence_c`;
+					}
+
+					print OUTPUT $fasta_header if($class_of_repeat eq 'i' || $class_of_repeat eq 'b');
+
+					if($type_of_repeat eq 'i' || $type_of_repeat eq 'm')
+					{
+						$v=0;
+						$count = 0;
+						while($mummer_output[$v])
+						{
+							if($mummer_output[$v] =~ /\s+(\d+)\s+(\d+)\s+(\d+)/)
+							{
+								$p1_from = $1;
+								$p2_from = $2;
+								$pat_len = $3;
+								$p1_to	 = ($p1_from+($pat_len-1));
+								$p2_to	 = ($p2_from+($pat_len-1));
+								$cal1    = ($length-$p2_to)+1;	#print $length."\n";
+								$cal2    = ($length-$p2_from)+1;
+				###	Local
+								if($spacer eq 'l')
+								{
+									if((($p1_from < $cal1) && ($p1_to < $cal1)) && ($p1_to+100 > $cal1))
+									{
+										$mummer_output[$v+1]=~/^(\w+)/;
+										$pattern = $1;
+										if(($type_of_repeat eq 'm' && $marcomolecule eq 'n') || ($type_of_repeat eq 'i' && $marcomolecule eq 'p'))
+										{
+											$raw_pattern = $pattern;
+											$pattern_2 = reverse $raw_pattern;
+										}
+
+										if($type_of_repeat eq 'i' && $marcomolecule eq 'n')
+										{
+											$raw_pattern = $pattern;
+											$pattern_2 = reverse $raw_pattern;
+											$pattern_2 =~ tr/atgc/tacg/;
+										}
+										$count++;
+										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($cal1 to $cal2)\n";
+									}
+								}
+
+		###	Global
+								if($spacer eq 'g')
+								{
+									if((($p1_from < $cal1) && ($p1_to < $cal1)) && ($p1_to+100 < $cal1))
+									{
+										$mummer_output[$v+1]=~/^(\w+)/;
+										$pattern = $1;
+										if(($type_of_repeat eq 'm' && $marcomolecule eq 'n') || ($type_of_repeat eq 'i' && $marcomolecule eq 'p'))
+										{
+											$raw_pattern = $pattern;
+											$pattern_2 = reverse $raw_pattern;
+										}
+
+										if($type_of_repeat eq 'i' && $marcomolecule eq 'n')
+										{
+											$raw_pattern = $pattern;
+											$pattern_2 = reverse $raw_pattern;
+											$pattern_2 =~ tr/atgc/tacg/;
+										}
+										$count++;
+										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($cal1 to $cal2)\n";
+									}		
+								}
+		###	All
+								if($spacer eq 'a')
+								{
+									if((($p1_from < $cal1) && ($p1_to < $cal1)))
+									{
+										$mummer_output[$v+1]=~/^(\w+)/;
+										$pattern = $1;
+										if(($type_of_repeat eq 'm' && $marcomolecule eq 'n') || ($type_of_repeat eq 'i' && $marcomolecule eq 'p'))
+										{
+											$raw_pattern = $pattern;
+											$pattern_2 = reverse $raw_pattern;
+										}
+
+										if($type_of_repeat eq 'i' && $marcomolecule eq 'n')
+										{
+											$raw_pattern = $pattern;
+											$pattern_2 = reverse $raw_pattern;
+											$pattern_2 =~ tr/atgc/tacg/;
+										}
+										$count++;
+										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($cal1 to $cal2)\n";
+									}
+								}
+		###	Manual (Greater)
+								if($spacer=~/g(\d+)/)
+								{
+									$spacer_length=$1;
+									if((($p1_from < $cal1) && ($p1_to < $cal1)) && ($p1_to+$spacer_length < $cal1))
+									{
+										$mummer_output[$v+1]=~/^(\w+)/;
+										$pattern = $1;
+
+										if(($type_of_repeat eq 'm' && $marcomolecule eq 'n') || ($type_of_repeat eq 'i' && $marcomolecule eq 'p'))
+										{
+											$raw_pattern = $pattern;
+											$pattern_2 = reverse $raw_pattern;
+										}
+
+										if($type_of_repeat eq 'i' && $marcomolecule eq 'n')
+										{
+											$raw_pattern = $pattern;
+											$pattern_2 = reverse $raw_pattern;
+											$pattern_2 =~ tr/atgc/tacg/;
+										}
+										$count++;
+										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($cal1 to $cal2)\n";
+									}
+								}
+		###	Manual (Lesser)
+								if($spacer=~/l(\d+)/)
+								{
+									$spacer_length=$1;
+									if((($p1_from < $cal1) && ($p1_to < $cal1)) && ($p1_to+$spacer_length > $cal1))
+									{
+										$mummer_output[$v+1]=~/^(\w+)/;
+										$pattern = $1;
+	
+										if(($type_of_repeat eq 'm' && $marcomolecule eq 'n') || ($type_of_repeat eq 'i' && $marcomolecule eq 'p'))
+										{
+											$raw_pattern = $pattern;
+											$pattern_2 = reverse $raw_pattern;
+										}
+
+										if($type_of_repeat eq 'i' && $marcomolecule eq 'n')
+										{
+											$raw_pattern = $pattern;
+											$pattern_2 = reverse $raw_pattern;
+											$pattern_2 =~ tr/atgc/tacg/;
+										}
+										$count++;
+										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($cal1 to $cal2)\n";
+									}
+								}
+		###	Manual (Equal)
+								if($spacer=~/e(\d+)/)
+								{
+									$spacer_length=$1;
+									if((($p1_from < $cal1) && ($p1_to < $cal1)) && (($p1_to+$spacer_length) == $cal1))
+									{
+										$mummer_output[$v+1]=~/^(\w+)/;
+										$pattern = $1;
+
+										if(($type_of_repeat eq 'm' && $marcomolecule eq 'n') || ($type_of_repeat eq 'i' && $marcomolecule eq 'p'))
+										{
+											$raw_pattern = $pattern;
+											$pattern_2 = reverse $raw_pattern;
+										}
+
+										if($type_of_repeat eq 'i' && $marcomolecule eq 'n')
+										{
+											$raw_pattern = $pattern;
+											$pattern_2 = reverse $raw_pattern;
+											$pattern_2 =~ tr/atgc/tacg/;
+										}
+										$count++;
+										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($cal1 to $cal2)\n";
+									}
+								}
+							}
+							$v++;
+						}
+						
+						if($count == 0)
+						{
+							print OUTPUT "Repeats not found\n";
+						}
+						print OUTPUT "\n";
+					}
+					
+					if($type_of_repeat eq 'ip')
+					{
+						$v=0;
+						$count = 0;
+						while($mummer_output[$v])
+						{
+							if($mummer_output[$v] =~ /\s+(\d+)\s+(\d+)\s+(\d+)/)
+							{
+								$p1_from = $1;
+								$p2_from = $2;
+								$pat_len = $3;
+								$p1_to	 = ($p1_from+($pat_len-1));
+								$p2_to	 = ($p2_from+($pat_len-1));
+								$cal1    = ($length-$p2_to)+1;	#print $length."\n";
+								$cal2    = ($length-$p2_from)+1;
+				###	Palindrome
+								if( ($p1_from == $cal1) )
+								{
+									$mummer_output[$v+1]=~/^(\w+)/;
+									$pattern = $1;
+									$count++;
+									print OUTPUT $pattern."\t($p1_from to $p1_to)\t$pat_len\n";
+								}
+							}
+						$v++;
+						}
+						
+						if($count == 0)
+						{
+							print OUTPUT "Repeats not found\n";
+						}
+						print OUTPUT "\n";
+					}
+
+					if($type_of_repeat eq 'e')
+					{
+						$w=0;
+						$count = 0;
+						while($mummer_output[$w])
+						{
+							if($mummer_output[$w] =~ /\s+(\d+)\s+(\d+)\s+(\d+)/)
+							{
+								$p1_from = $1;
+								$p2_from = $2;
+								$pat_len = $3;
+								$p1_to	 = ($p1_from+($pat_len-1));
+								$p2_to	 = ($p2_from+($pat_len-1));
+				###	Local
+								if($spacer eq 'l')
+								{
+									if((($p1_from < $p2_from) && ($p1_to < $p2_from)) && ($p1_to+100 > $p2_from))
+									{
+										$mummer_output[$w+1]=~/^(\w+)/;
+										$pattern = $1;
+										$pattern_2 = $pattern;
+										$pattern_2 =~ tr/atgc/tacg/;
+										$count++;
+										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($p2_from to $p2_to)\n";
+									}
+								}
+		###	Global
+								if($spacer eq 'g')
+								{
+									if((($p1_from < $p2_from) && ($p1_to < $p2_from)) && ($p1_to+100 < $p2_from))
+									{
+										$mummer_output[$w+1]=~/^(\w+)/;
+										$pattern = $1;
+										$pattern_2 = $pattern;
+										$pattern_2 =~ tr/atgc/tacg/;
+										$count++;
+										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($p2_from to $p2_to)\n";
+									}
+								}
+		###	All
+								if($spacer eq 'a')
+								{
+									if(($p1_from < $p2_from) && ($p1_to < $p2_from))
+									{
+										$mummer_output[$w+1]=~/^(\w+)/;
+										$pattern = $1;
+										$pattern_2 = $pattern;
+										$pattern_2 =~ tr/atgc/tacg/;
+										$count++;
+										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($p2_from to $p2_to)\n";
+									}
+								}		
+		###	Manual (Greater)
+								if($spacer =~ 'g(\d+)')
+								{
+									$spacer_length=$1;
+									if(($p1_from < $p2_from) && ($p1_to < $p2_from) && ($p1_to+$spacer_length < $p2_from))
+									{
+										$mummer_output[$w+1]=~/^(\w+)/;
+										$pattern = $1;
+										$pattern_2 = $pattern;
+										$pattern_2 =~ tr/atgc/tacg/;
+										$count++;
+										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($p2_from to $p2_to)\n";
+									}
+								}
+		###	Manual (Lesser)
+								if($spacer =~ 'l(\d+)')
+								{
+									$spacer_length=$1;
+									if(($p1_from < $p2_from) && ($p1_to < $p2_from) && ($p1_to+$spacer_length > $p2_from))
+									{
+										$mummer_output[$w+1]=~/^(\w+)/;
+										$pattern = $1;
+										$pattern_2 = $pattern;
+										$pattern_2 =~ tr/atgc/tacg/;
+										$count++;
+										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($p2_from to $p2_to)\n";
+									}
+								}			
+		###	Manual (Equal)
+								if($spacer =~ 'e(\d+)')
+								{
+									$spacer_length=$1;
+									if(($p1_from < $p2_from) && ($p1_to < $p2_from) && ($p1_to+$spacer_length == $p2_from))
+									{
+										$mummer_output[$w+1]=~/^(\w+)/;
+										$pattern = $1;
+										$pattern_2 = $pattern;
+										$pattern_2 =~ tr/atgc/tacg/;
+										$count++;
+										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($p2_from to $p2_to)\n";
+									}
+								}	
+							}
+							$w++;		
+						}
+
+						if($count == 0)
+						{
+							print OUTPUT "Repeats not found\n";
+						}
+						print OUTPUT "\n";
+					}		
+				}
+				
+				if ($marcomolecule eq "p")
+				{
+					if($max ==1)
+					{
+						@mummer_output = `$sftwdir/identical -maxmatch -l $min_repeat_length -s -L $i.sequence $i.sequence_c`;
+					}
+
+					else
+					{
+						@mummer_output = `$sftwdir/identical -maxmatch -l $min_repeat_length -s -L $i.sequence $i.sequence_c`;
+					}
+
+					print OUTPUT $fasta_header if($class_of_repeat eq 'i' || $class_of_repeat eq 'b');
+					if($type_of_repeat eq 'i')
+					{
+						$v=0;
+						$count = 0;
+						while($mummer_output[$v])
+						{
+							if($mummer_output[$v] =~ /\s+(\d+)\s+(\d+)\s+(\d+)/)
+							{
+								$p1_from = $1;
+								$p2_from = $2;
+								$pat_len = $3;
+								$p1_to	 = ($p1_from+($pat_len-1));
+								$p2_to	 = ($p2_from+($pat_len-1));
+								$cal1    = ($length-$p2_to)+1;	#print $length."\n";
+								$cal2    = ($length-$p2_from)+1;
+				###	Local
+								if($spacer eq 'l')
+								{
+									if((($p1_from < $cal1) && ($p1_to < $cal1)) && ($p1_to+100 > $cal1))
+									{
+										$mummer_output[$v+1]=~/^(\w+)/;
+										$pattern = $1;
+										if($type_of_repeat eq 'i' && $marcomolecule eq 'p')
+										{
+											$raw_pattern = $pattern;
+											$pattern_2 = reverse $raw_pattern;
+										}
+										$count++;
+										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($cal1 to $cal2)\n";
+									}
+								}
+		###	Global
+								if($spacer eq 'g')
+								{
+									if((($p1_from < $cal1) && ($p1_to < $cal1)) && ($p1_to+100 < $cal1))
+									{
+										$mummer_output[$v+1]=~/^(\w+)/;
+										$pattern = $1;
+										if($type_of_repeat eq 'i' && $marcomolecule eq 'p')
+										{
+											$raw_pattern = $pattern;
+											$pattern_2 = reverse $raw_pattern;
+										}					
+										$count++;
+										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($cal1 to $cal2)\n";
+									}		
+								}
+		###	All
+								if($spacer eq 'a')
+								{
+									if( ($p1_from < $cal1) && ($p1_to < $cal1) )
+									{
+										$mummer_output[$v+1]=~/^(\w+)/;
+										$pattern = $1;
+										if($type_of_repeat eq 'i' && $marcomolecule eq 'p')
+										{
+											$raw_pattern = $pattern;
+											$pattern_2 = reverse $raw_pattern;
+										}									
+										$count++;
+										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($cal1 to $cal2)\n";
+									}
+								}
+		###	Manual (Greater)
+								if($spacer=~/g(\d+)/)
+								{
+									$spacer_length=$1;
+									if((($p1_from < $cal1) && ($p1_to < $cal1)) && ($p1_to+$spacer_length < $cal1))
+									{
+										$mummer_output[$v+1]=~/^(\w+)/;
+										$pattern = $1;
+										if($type_of_repeat eq 'i' && $marcomolecule eq 'p')
+										{
+											$raw_pattern = $pattern;
+											$pattern_2 = reverse $raw_pattern;
+										}
+										$count++;
+										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($cal1 to $cal2)\n";
+									}
+								}
+		###	Manual (Lesser)
+								if($spacer=~/l(\d+)/)
+								{
+									$spacer_length=$1;
+									if((($p1_from < $cal1) && ($p1_to < $cal1)) && ($p1_to+$spacer_length > $cal1))
+									{
+										$mummer_output[$v+1]=~/^(\w+)/;
+										$pattern = $1;
+										if($type_of_repeat eq 'i' && $marcomolecule eq 'p')
+										{
+											$raw_pattern = $pattern;
+											$pattern_2 = reverse $raw_pattern;
+										}
+										$count++;
+										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($cal1 to $cal2)\n";
+									}
+								}
+		###	Manual (Equal)
+								if($spacer=~/e(\d+)/)
+								{
+									$spacer_length=$1;
+									if((($p1_from < $cal1) && ($p1_to < $cal1)) && (($p1_to+$spacer_length) == $cal1))
+									{
+										$mummer_output[$v+1]=~/^(\w+)/;
+										$pattern = $1;
+										if($type_of_repeat eq 'i' && $marcomolecule eq 'p')
+										{
+											$raw_pattern = $pattern;
+											$pattern_2 = reverse $raw_pattern;
+										}
+										$count++;
+										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($cal1 to $cal2)\n";
+									}
+								}
+							}
+							$v++;
+						}
+
+						if($count == 0)
+						{
+							print OUTPUT "Repeats not found\n";
+						}
+						print OUTPUT "\n";
+					}					
+					
+					if($type_of_repeat eq 'ip')
+					{
+						$v=0;
+						$count = 0;
+						while($mummer_output[$v])
+						{
+							if($mummer_output[$v] =~ /\s+(\d+)\s+(\d+)\s+(\d+)/)
+							{
+								$p1_from = $1;
+								$p2_from = $2;
+								$pat_len = $3;
+								$p1_to	 = ($p1_from+($pat_len-1));
+								$p2_to	 = ($p2_from+($pat_len-1));
+								$cal1    = ($length-$p2_to)+1;	#print $length."\n";
+								$cal2    = ($length-$p2_from)+1;
+#Palindrome									
+								if( ($p1_from == $cal1) )
+								{
+									$mummer_output[$v+1]=~/^(\w+)/;
+									$pattern = $1;
+									$count++;
+									print OUTPUT $pattern."\t($p1_from to $p1_to)"."\t".$pat_len."\n";
+								}																				
+							}									
+							$v++;
+						}
+
+						if($count == 0)
+						{
+							print OUTPUT "Palindromes not found\n";
+						}
+						print OUTPUT "\n";
+					}	
+				}				
+
+				#$i+=$k;				#print "\n\n$i\n\n";
+				$reverse = "";				#print @mummer_output;
+				$sequence = "";
+
+				`rm -f $i.sequence $i.sequence_c` if ($class_of_repeat eq 'i');
+
+###	Degenerate				
+
+				if($class_of_repeat eq 'd' || $class_of_repeat eq 'b')
+
+				{
+					open(RepEx_gaps,">m.out");
+					print RepEx_gaps @mummer_output;
+					close RepEx_gaps;
+					@mummer_output = ();
+					`$sftwdir/gaps -l 50 -f .12 -s 600 < m.out > m.gaps`;
+					
+					# `chmod 777 /home/httpd/html/RepEx/outputfile/del_dump`;
+
+					@combine_mums = `$sftwdir/similar -x -e .10 -W m.errorsgaps $i.sequence $i.sequence_c m.gaps`;
+
+					`rm -f m.gaps m.errorsgaps m.out`;
+					print WRITE1 $fasta_header;
+					$c=0;
+					$count = 0;
+					while($combine_mums[$c])
+					{	
+						if($combine_mums[$c] =~ /^Region:\s+(\d+) \.\. (\d+)\s+(\d+) \.\. (\d+)\s+(\d+) \/ (\d+)\s+(\d+\.\d+)/)
+						{
+							$p1_from=$1;
+							$p1_to=$2;
+							$p2_from=$3;
+							$p2_to=$4;
+							$mismatch=$5;
+							$pattern_length=$6;
+							$percentage_of_mismatch=$7;
+							$percent_Identity=100-$percentage_of_mismatch;
+							$match=$pattern_length-$mismatch;
+							if($mismatch!=0)
+							{
+###	Mirror and Inverted
+								if(($type_of_repeat eq 'm' || $type_of_repeat eq 'i') && $marcomolecule eq 'n')
+								{
+									$cal1=($length-$p2_to)+1;
+									$cal2=($length-$p2_from)+1;
+###	Global
+									if($spacer eq 'g')
+									{
+										if( ( ($p1_from < $cal1) && ($p1_to < $cal1) && ($p1_to+100 < $cal1) ) || ( ($p1_from > $cal2) && ($p1_to > $cal2) && ($p1_to > $cal2+100) ) )
+										{
+											print WRITE1 "$p1_from .. $p1_to\t$cal1 .. $cal2\t$match / $pattern_length\t$percent_Identity %\t$c\n";
+											$count++;
+										}
+									}
+###	Local
+									if($spacer eq 'l')
+									{
+										if( ( ($p1_from < $cal1) && ($p1_to < $cal1) && ($p1_to+100 > $cal1) ) || ( ($p1_from > $cal2) && ($p1_to > $cal2) && ($p1_to < $cal2+100) ) )
+										{
+											print WRITE1 "$p1_from .. $p1_to\t$cal1 .. $cal2\t$match / $pattern_length\t$percent_Identity %\t$c\n";
+											$count++;
+										}
+									}
+###	All
+									if($spacer eq 'a')
+									{
+										if( ( ($p1_from < $cal1) && ($p1_to < $cal1) ) || ( ($p1_from > $cal2) && ($p1_to > $cal2) ) )
+										{
+											print WRITE1 "$p1_from .. $p1_to\t$cal1 .. $cal2\t$match / $pattern_length\t$percent_Identity %\t$c\n";
+											$count++;
+										}
+									}
+###	Manual (Global)
+									if($spacer=~/g(\d+)/)
+									{
+										$spacer_length=$1;
+										if( ( ($p1_from < $cal1) && ($p1_to < $cal1) && ($p1_to+$spacer_length < $cal1) ) || ( ($p1_from > $cal2) && ($p1_to > $cal2) && ($p1_to > $cal2+$spacer_length) ) )
+										{
+											print WRITE1 "$p1_from .. $p1_to\t$cal1 .. $cal2\t$match / $pattern_length\t$percent_Identity %\t$c\n";
+											$count++;
+										}
+									}
+###	Manual (Local)
+									if($spacer=~/l(\d+)/)
+									{
+										$spacer_length=$1;
+										if( ( ($p1_from < $cal1) && ($p1_to < $cal1) && ($p1_to + $spacer_length > $cal1) ) || ( ($p1_from > $cal2) && ($p1_to > $cal2) && ($p1_to < $cal2+$spacer_length) ) )
+										{
+											print WRITE1 "$p1_from .. $p1_to\t$cal1 .. $cal2\t$match / $pattern_length\t$percent_Identity %\t$c\n";
+											$count++;
+										}
+									}
+###	Manual (Equal)
+									if($spacer=~/e(\d+)/)
+									{
+										$spacer_length=$1;
+										if( ( ($p1_from < $cal1) && ($p1_to < $cal1) && ($p1_to+$spacer_length == $cal1) ) || ( ($p1_from > $cal2) && ($p1_to > $cal2) && ($p1_to == $cal2+$spacer_length) ) )
+										{
+											print WRITE1 "$p1_from .. $p1_to\t$cal1 .. $cal2\t$match / $pattern_length\t$percent_Identity %\t$c\n";
+											$count++;
+										}
+									}
+								}
+###########################################################################################################									
+###	Everted
+								if($type_of_repeat eq 'e' && $marcomolecule eq 'n')
+								{
+									if($spacer eq 'g')
+									{
+										if( ( ($p1_from < $p2_from) && ($p1_to < $p2_from) && ($p1_to+100 < $p2_from) ) || ( ($p1_from > $p2_to) && ($p1_to > $p2_to) && ($p1_to > $p2_to+100) ) )
+										{
+											print WRITE1 "$p1_from .. $p1_to\t$p2_from .. $p2_to\t$match / $pattern_length\t$percent_Identity %\n";	
+											$count++;		
+										}
+									}
+
+###	Local
+									if($spacer eq 'l')
+									{
+										if( ( ($p1_from < $p2_from) && ($p1_to < $p2_from) && ($p1_to+100 > $p2_from) ) || ( ($p1_from > $p2_to) && ($p1_to > $p2_to) && ($p1_to < $p2_to+100) ) )
+										{
+											print WRITE1 "$p1_from .. $p1_to\t$p2_from .. $p2_to\t$match / $pattern_length\t$percent_Identity %\n";	
+											$count++;		
+										}
+									}
+
+###	All
+									if($spacer eq 'a')
+									{
+										if( ( ($p1_from < $p2_from) && ($p1_to < $p2_from) ) || ( ($p1_from > $p2_to) && ($p1_to > $p2_to) ) )
+										{
+											print WRITE1 "$p1_from .. $p1_to\t$p2_from .. $p2_to\t$match / $pattern_length\t$percent_Identity %\n";	
+											$count++;		
+										}
+									}
+### Manual (Global)
+									if($spacer=~/g(\d+)/)
+									{
+										$spacer_length=$1;
+										if( ( ($p1_from < $p2_from) && ($p1_to < $p2_from) && ($p1_to+$spacer_length < $p2_from) ) || ( ($p1_from > $p2_to) && ($p1_to > $p2_to) && ($p1_to > $p2_to+$spacer_length) ) )
+										{
+											print WRITE1 "$p1_from .. $p1_to\t$p2_from .. $p2_to\t$match / $pattern_length\t$percent_Identity %\n";	
+											$count++;		
+										}
+									}
+### Manual (Local)
+									if($spacer=~/l(\d+)/)
+									{
+										$spacer_length=$1;
+										if( ( ($p1_from < $p2_from) && ($p1_to < $p2_from) && ($p1_to+$spacer_length > $p2_from) ) || ( ($p1_from > $p2_to) && ($p1_to > $p2_to) && ($p1_to < $p2_to+$spacer_length) ) )
+										{
+											print WRITE1 "$p1_from .. $p1_to\t$p2_from .. $p2_to\t$match / $pattern_length\t$percent_Identity %\n";	
+											$count++;		
+										}
+									}
+### Manual (Equal)
+									if($spacer=~/e(\d+)/)
+									{
+										$spacer_length=$1;
+										if( ( ($p1_from < $p2_from) && ($p1_to < $p2_from)&& ($p1_to+$spacer_length == $p2_from) ) || ( ($p1_from > $p2_to) && ($p1_to > $p2_to) && ($p1_to == $p2_to+$spacer_length) ) )
+										{
+											print WRITE1 "$p1_from .. $p1_to\t$p2_from .. $p2_to\t$match / $pattern_length\t$percent_Identity %\n";	
+											$count++;		
+										}
+									}
+								}							
+							}
+						}
+						$c++;
+					}
+
+					if($count == 0)
+					{
+						print WRITE1 "Repeats not found\n";
+					}
+	
+					print WRITE1 "\n";
+					@combine_mums = ();
+					$i=$j;
+					last;
+				}
+				last;
+			}
+			$j++;
+		}
+	}
+	$i++;
+}

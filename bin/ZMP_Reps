@@ -1,0 +1,514 @@
+#!/usr/bin/env bash
+# Songtao Gui
+
+# set -o xtrace
+# set -o errexit
+set -o nounset
+set -o pipefail
+
+# >>>>>>>>>>>>>>>>>>>>>>>> Load Common functions >>>>>>>>>>>>>>>>>>>>>>>>
+export quiet=FALSE
+export verbose=FALSE
+export sdir=$(dirname $0)
+sdir=${sdir%%/bin}
+source ${sdir}/dep/common.sh
+if [ $? -ne 0 ];then 
+    echo -e "\033[31m\033[7m[ERROR]\033[0m --> Cannot load common functions from easybash lib: ${sdir}/dep/common.sh" >&2
+    exit 1;
+fi
+# gst_rcd "Common functions loaded"
+# <<<<<<<<<<<<<<<<<<<<<<<< Common functions <<<<<<<<<<<<<<<<<<<<<<<<
+
+usage=$(
+cat <<EOF
+------------------------------------------------------------
+Identify Repeats for ZMP, will identify these repeats:
+
+    1. direct repeat:      [ >>>> ------ >>>> ]
+    2. mirror repeat:      [ >>>> ------ <<<< ]
+    3. MITE candidate:     [ >>tsd ---- tsd--  
+                             --tsd ---- tsd<< ]
+    4. inverted repeat:    [ >>>> ------ ---- 
+                             ---- ------ <<<< ]
+    5. everted repeat:     [ >>>> ------ ---- 
+                             ---- ------ >>>> ]
+------------------------------------------------------------
+Dependence: grf, repex
+------------------------------------------------------------
+USAGE:
+    bash $(basename $0) [OPTIONS]
+
+OPTIONS: ([R]:required  [O]:optional)
+# Common
+    -h, --help                          show help and exit.
+    -t, --threads       <num>   [O]     Set threads (default: 2)
+    -i, --input <str>           [R]     Path to input sequence fasta[.gz]
+    -o, --outpre <str>          [O]     Output prefix, default: ZMP_Reps_out
+    -m, --modes <str>           [O]     Comma sepereated repeat types to identify, one
+                                        or more of: [D,I,E,M,T], or "ALL" for all of them.
+                                            D => direct repeat
+                                            I => inverted repeat
+                                            E => everted repeat
+                                            M => mirror repeat
+                                            T => MITE candidate
+                                        Default: ALL
+    --parserealposi             [O]     Parse output to get real positions, see notes below for details
+
+# Filter
+    -l, --minlen <int>          [O]     Minimum length (bp) of repeats. Default: 10
+    -L, --maxlen  <int>         [O]     Maximum length (bp) of repeats, only works for palindromes
+                                        Default: 100
+    -g, --maxgap <int>          [O]     Maximum seq length (bp) between repeat pair. Default: 100
+    --mintsd <int>              [O]     For MITE only, the minimum length (bp) of tsd. Default: 2
+    --maxtsd <int>              [O]     For MITE only, the maximum length (bp) of tsd. Default: 20
+
+# Repeat with mismatch
+    -d, --degenerative          [O]     Also identify degenerative repeats.
+    -p, --mismatchrate <int>    [O]     Maximum mismatch rate in percentage. Default: 10, 
+                                        means no more than 10% mismatchs, only works with "--degerative"
+
+# Misc
+    --keep                              keep intermediate files
+    --quiet                             keep quiet, only output fatal errors
+    --verbose                           be verbose, output detailed logs
+
+NOTE:
+    Sometimes, when the input sequence is subset of the real genome sequence, or is concatenated from
+    two sequences, we would like to get the real position of the repeats. This script would automatically
+    convert the resulted repeats into real positions with "--parserealposi" option, as long as the input
+    sequence IDs follow the patterns below:
+        
+    1. "(\w+)\@(\w+)\@(\d+)\@(\d+)" will be parsed as: ID, real-chr, real-start1, real-end, for subset of 
+        real genomes.
+    2. "(\w+)\@(\w+)\@(\d+)\@(\d+)\@(\d+)\@(\d+)" will be parsed as ID, real-chr, real-star1-A, real-end-A,
+        real-start1-B, real-end-B, for subset and concatenated of two regions. 
+        Please note that the parser assumes the two regions were from the same chr.
+        !!! ONLY records with left part in region1 and right part in region2 will be print.
+
+------------------------------------------------------------
+Author: Songtao Gui
+E-mail: songtaogui@sina.com
+
+EOF
+)
+if [[ $# -eq 0 ]]; then
+    echo "$usage" >&2
+    exit 1
+fi
+
+# >>>>>>>>>>>>>>>>>>>>>>>> Parse Options >>>>>>>>>>>>>>>>>>>>>>>>
+# Set Default Opt
+export threads=2
+export input=""
+export outpre="ZMP_Reps_out"
+export modes="ALL"
+export minlen=10
+export maxlen=100
+export maxgap=100
+export mintsd=2
+export maxtsd=20
+export degenerative=FALSE
+export mismatchrate=10
+export keep=FALSE
+export parserealposi=FALSE
+
+# parse args
+UNKOWN_ARGS=()
+while [[ $# > 0 ]]; do
+    case "$1" in
+        -h|--help)
+            echo "$usage" >&2
+            exit 1
+        ;;
+        -t|--threads)
+            threads=$2
+            shift 2
+        ;;
+        -i|--input)
+            input=$2
+            shift 2
+        ;;
+        -o|--outpre)
+            outpre=$2
+            shift 2
+        ;;
+        -m|--modes)
+            modes=$2
+            shift 2
+        ;;
+        -l|--minlen)
+            minlen=$2
+            shift 2
+        ;;
+        -L|--maxlen)
+            maxlen=$2
+            shift 2
+        ;;
+        -g|--maxgap)
+            maxgap=$2
+            shift 2
+        ;;
+        -d|--degenerative)
+            degenerative=TRUE
+            shift 1
+        ;;
+        --parserealposi)
+            parserealposi=TRUE
+            shift 1
+        ;;
+        -p|--mismatchrate)
+            mismatchrate=$2
+            shift 2
+        ;;
+        --mintsd)
+            mintsd=$2
+            shift 2
+        ;;
+        --maxtsd)
+            maxtsd=$2
+            shift 2
+        ;;
+        --keep)
+            keep=TRUE
+            shift 1
+        ;;
+        --quiet)
+            quiet=TRUE
+            verbose=FALSE
+            shift 1
+        ;;
+        --verbose)
+            verbose=TRUE
+            quiet=FALSE
+            shift 1
+        ;;
+        *) # unknown flag/switch
+            UNKOWN_ARGS+=("$1")
+            shift
+        ;;
+    esac
+done
+if [ "${#UNKOWN_ARGS[@]}" -gt 0 ];then
+    echo "[ERROR] --> Wrong options: \"${UNKOWN_ARGS[@]}\"" >&2
+    exit 1
+fi
+unset UNKOWN_ARGS # restore UNKOWN_ARGS params
+# ! Check if required vars are legal
+check_var_empty input threads outpre modes minlen maxlen maxgap keep parserealposi degenerative
+check_var_numeric threads minlen maxlen maxgap mismatchrate
+check_files_exists $input
+if [[ "$modes" == "ALL" ]];then
+    modes="D,I,E,M,T"
+fi
+echo "$modes" | grep -P "[^DIEMT,]" 1>/dev/null 2>&1 
+if [ $? -eq 0 ];then
+    gst_err "Wrong --modes: $modes, should be one or more of [D,P,I,E,M,T], seperated with comma, and no spaces."
+    exit 1
+fi
+
+if [[ "$degenerative" != "TRUE" ]];then
+    mismatchrate=0
+fi
+# <<<<<<<<<<<<<<<<<<<<<<<< Parse Options <<<<<<<<<<<<<<<<<<<<<<<<
+
+# USAGE:$0 in.id.file type  pre(eg. "AAA.D")
+parse_grf_id () {
+    # parse grf id to bedpe
+    # id format: >Test_seq:429:1428:8m1M1m
+    local in=$1
+    local type=$2
+    local pre=$3
+    check_var_empty in type pre
+    cat $in | perl -F":" -slane '
+        BEGIN{
+            use List::Util qw/sum/;
+            sub parse_cigar{
+                my $cigar=$_[0];
+                my @num=split(/[A-Za-z]/, $cigar);
+                my @str=split(/\d+/, $cigar);
+                shift @str;
+                my @idx= grep{ $str[$_] eq "m" } (0 .. $#str);
+                my $len=sum(@num);
+                my $pid=sprintf("%.2f",sum(@num[@idx])/$len * 100);
+                return ($len, $pid);
+            }
+            $,="\t";
+        }
+        $F[0] =~ s/>//;
+        $id=sprintf("%s%07d", $pre,$.);
+        $id=sprintf("%s%07d.%s", $pre,$.,$F[4]) if $F[4];
+        ($len, $pid) = parse_cigar($F[3]);
+        $s1=$F[1]-1;
+        $e1=$F[1] + $len -1;
+        $s2=$F[2] - $len;
+        $e2=$F[2];
+        $gap=$s2 - $e1;
+        print $F[0], $s1, $e1, $F[0], $s2, $e2, $id, $len, "+\t+", $type, $pid if $gap <= $maxgap;
+    ' -- -pre=$pre -type=$type -maxgap=$maxgap
+}
+export -f parse_grf_id
+
+# USAGE:$0 in type pre qstr
+parse_repex () {
+    local in=$1
+    local type=$2
+    local pre=$3
+    local qstr=$4
+    sed 's/[()]//g' $in | perl -slane '
+        BEGIN{
+            $,="\t";
+            $rstr="+";
+        }
+        if(/^>/){
+            $chr=$_; $chr=~s/>//;
+        }else{
+            ++$n;
+            $id=sprintf("%s%07d", $pre,$n);
+            if(/^[A-Za-z]/){
+                #~p identitcal
+                $len = $F[3] - $F[1] +1;
+                $pid = sprintf("%.2f", 100);
+                print $chr, $F[1]-1, $F[3], $chr, $F[5]-1, $F[7], $id, $len, $rstr, $qstr, $type, $pid;
+            }elsif(/^\d/){
+                #~p similar
+                $len = $F[8];
+                $pid = sprintf("%.2f", $F[9]);
+                print $chr, $F[0]-1, $F[2], $chr, $F[3]-1, $F[5], $id, $len, $rstr, $qstr, $type, $pid;
+            }
+        }
+    ' -- -pre=$pre -type=$type -qstr=$qstr
+}
+export -f parse_repex
+
+# USAGE:$0 type[Direct_Repeat,Inverted_Repeat,MITE]
+run_grf () {
+    local type=$1
+    local pre="$outpre"
+    local cmd=""
+    gst_log "Identify $type ..."
+    if [ "$type" == "Direct_Repeat" ];then
+        pre="$pre.D"
+        cmd="grf-main -f 1 -c 2 -i $input -o ${outpre}/${type} \
+            -p $mismatchrate -t $threads --min_tr $minlen"
+    elif [ "$type" == "Inverted_Repeat" ];then
+        pre="$pre.I"
+        cmd="grf-main -f 1 -c 0 -i $input -o ${outpre}/${type} \
+            -p $mismatchrate -t $threads --min_tr $minlen"
+    elif [ "$type" == "MITE" ];then
+        pre="$pre.T"
+        # MITE has input seq limit,and program will fail if seq too short
+        # So we just filter the input, in case grf-main core dumped
+        local seqlimit=$(perl -e 'print 20+$ENV{maxgap}+2*$ENV{maxtsd}+800;')
+        gst_rcd "the minimum seq length for $type detection: $seqlimit"
+        seqkit fx2tab -l $input -j $threads | perl -F"\t" -slane '
+            print "$F[0]\t$F[1]" unless $F[-1] <= $seqlimit;
+        ' -- -seqlimit=$seqlimit | seqkit tab2fx -j $threads -o ${outpre}/${type}.input
+        if [ $? -ne 0 ];then gst_err "Get $type input failed: Non-zero exit"; exit 1;fi
+        if [ ! -s "${outpre}/${type}.input" ]; then
+            gst_warn "No valid seq for MITE candidate detection, skip."
+            touch ${outpre}/${type}.tsv
+            return 0
+        fi
+        cmd="grf-main -f 1 -c 1 -i ${outpre}/${type}.input -o ${outpre}/${type} \
+            --min_tr $minlen \
+            --min_tsd $mintsd --max_tsd $maxtsd \
+            -p $mismatchrate -t $threads"
+    else
+        gst_err "Wrong type: $type"
+        exit 1
+    fi
+    if [ ! -s "${outpre}/${type}.done" ];then
+        gst_rcd "run grf-main cmd:"
+        gst_rcd "$(echo "$cmd" | perl -pe 's/\s+/ /g') ..."
+        $cmd 1>${outpre}/${type}.log 2>&1 
+        if [ $? -ne 0 ];then gst_err "grf-main for $type failed: See ${outpre}/${type}.log for details"; exit 1;fi
+        cat ${outpre}/${type}/*.id > ${outpre}/${type}.id &&\
+        gst_rcd "parse ${type} out..." &&\
+        parse_grf_id ${outpre}/${type}.id $type $pre > ${outpre}/${type}.tsv
+        if [ $? -ne 0 ];then gst_err "$0 failed: Non-zero exit"; exit 1;fi
+        echo "done" > ${outpre}/${type}.done
+    else
+        gst_warn "Already done, skip running. Remove ${outpre}/${type}.done to force re-run."
+    fi
+}
+export -f run_grf
+
+# USAGE:$0 type[Mirror_Repeat,Everted_Repeat]
+run_repex () {
+    local type=$1
+    local pre="$outpre"
+    local qstr="+"
+    local tecode=""
+    if [ "$type" == "Everted_Repeat" ];then
+        tecode="e"
+        pre="$pre.E"
+        qstr="-"
+    elif [ "$type" == "Mirror_Repeat" ];then
+        pre="$pre.M"
+        tecode="m"
+    else
+        gst_err "Wrong type: $type"
+        exit 1
+    fi
+
+    gst_log "Identify ${type} ..."
+    if [ ! -s "${outpre}/${type}_done" ];then
+        mkdir -p ${outpre}
+        if [ "$degenerative" == "TRUE" ];then
+            gst_rcd "repex_mdf -f $input -o ${outpre}/${type} -t $tecode -l $minlen -s l$maxgap -c b"
+            repex_mdf -f $input -o ${outpre}/${type} -t $tecode -l $minlen -s l$maxgap -c b 1>${outpre}/${type}.log 2>&1
+            if [ $? -ne 0 ];then gst_err "repex_mod failed: check ${outpre}/${type}.log for details"; exit 1;fi
+            cat ${outpre}/${type}.identical ${outpre}/${type}.similar > ${outpre}/${type}.repex &&\
+            rm -f ${outpre}/${type}.identical ${outpre}/${type}.similar
+        else
+            gst_rcd "repex_mdf -f $input -o ${outpre}/${type} -t $tecode -l $minlen -s l$maxgap -c i"
+            repex_mdf -f $input -o ${outpre}/${type} -t $tecode -l $minlen -s l$maxgap -c i 1>${outpre}/${type}.log 2>&1
+            if [ $? -ne 0 ];then gst_err "repex_mod failed: check ${outpre}/${type}.log for details"; exit 1;fi
+            cat ${outpre}/${type}.identical > ${outpre}/${type}.repex &&\
+            rm -f ${outpre}/${type}.identical
+        fi
+        if [ $? -ne 0 ];then gst_err "repex for $type failed"; exit 1;fi
+        gst_rcd "parse ${type} out ..."
+        parse_repex ${outpre}/${type}.repex $type $pre $qstr > ${outpre}/${type}.tsv
+        if [ $? -ne 0 ];then gst_err "$0 failed: Non-zero exit"; exit 1;fi
+        echo "done" > ${outpre}/${type}_done
+    else
+        gst_warn "Already done, skip running. Remove ${outpre}/${type}_done to force re-run."
+    fi
+}
+export -f run_repex
+
+# >>>>>>>>>>>>>>>>>>>>>>>> MAIN >>>>>>>>>>>>>>>>>>>>>>>>
+gst_log "Start Repeat calling for $outpre ..."
+
+gst_rcd "Options:
+------------------------------
+    threads       => $threads
+    input         => $input
+    outpre        => $outpre
+    modes         => $modes
+    minlen        => $minlen
+    maxlen        => $maxlen
+    maxgap        => $maxgap
+    mintsd        => $mintsd
+    maxtsd        => $maxtsd
+    degenerative  => $degenerative
+    mismatchrate  => $mismatchrate
+    keep          => $keep
+    parserealposi => $parserealposi
+------------------------------
+"
+
+if [ ! -s "${outpre}.done" ];then
+    seqkit fx2tab -j $threads -n -l $input -o ${outpre}/input.len
+    if [ $? -ne 0 ];then gst_err "Get seq-len failed: Non-zero exit"; exit 1;fi
+    mkdir -p ${outpre}
+    # DIEMT
+    if [[ "${modes}" == *"D"* ]]; then
+        run_grf Direct_Repeat
+    fi
+
+    if [[ "${modes}" == *"I"* ]]; then
+        run_grf Inverted_Repeat
+    fi
+
+    if [[ "${modes}" == *"T"* ]]; then
+        run_grf MITE
+    fi
+
+    if [[ "${modes}" == *"M"* ]]; then
+        run_repex Mirror_Repeat
+    fi
+
+    if [[ "${modes}" == *"E"* ]]; then
+        run_repex Everted_Repeat
+    fi
+
+    gst_log "Get final result ..."
+    cat ${outpre}/*.tsv | perl -F"\t" -slane '
+        BEGIN{
+            $,="\t";
+            $inputfile="$ENV{outpre}/input.len";
+            open(IN,"$inputfile") or die("Cannot open file: $inputfile");
+            while(<IN>){
+                chomp;
+                ($seq,$len)=split(/\t/,$_);
+                $hlen{$seq}=$len;
+            }
+            $cutoff = 100 - $mismatchrate;
+        }
+        $seqid=$F[0];
+        if($parserealposi eq "TRUE"){
+            @id=split(/\@/, $F[0]);
+            ++$h{$#id};
+            $reallen=$hlen{$F[0]};
+            if($#id == 3){
+                #~p subset
+                $parselen=$id[3]-$id[2]+1;
+                die("\033[31m\033[7m[ERROR]\033[0m --> The sequence length ($reallen) did not match the region length ($parselen) in the id: $F[0] on line $.") unless $reallen == $parselen;
+                $seqid = $id[0];
+                $F[0] = $id[1];
+                $F[3] = $id[1];
+                $F[1] = $F[1] + $id[2] - 1;
+                $F[2] = $F[2] + $id[2] - 1;
+                $F[4] = $F[4] + $id[2] - 1;
+                $F[5] = $F[5] + $id[2] - 1;
+            }elsif($#id == 5){
+                #~p subset-concat
+                $seqid = $id[0];
+                $len1 = $id[3] - $id[2] + 1;
+                $len2 = $id[5] - $id[4] + 1;
+                $parselen = $len1 + $len2;
+                die("\033[31m\033[7m[ERROR]\033[0m --> The sequence length ($reallen) did not match the region length ($parselen) in the id: $F[0] on line $.") unless $reallen == $parselen;
+                #~p skip records that cross the bondary:
+                if($F[2] > $len1){++$xrg;next;}
+                if($F[4] < $len1){++$xrg;next;}
+                $F[0] = $id[1];
+                $F[3] = $id[1];
+                #~p get real posi
+                $F[1] = $F[1] + $id[2] - 1;
+                $F[2] = $F[2] + $id[2] - 1;
+                $F[4] = $F[4] + $id[4] - 1;
+                $F[5] = $F[5] + $id[4] - 1;
+            }
+        }
+        if( $F[11] >= 0 ){
+            ++$o;
+            print @F,$seqid;
+        }
+        END{
+            if($ENV{verbose} eq "TRUE"){
+                if($parserealposi eq "TRUE"){
+                    print STDERR "\033[32m>>>------------>\033[0m Parse $h{5} regions as subset and concat of two real regions" if $h{5};
+                    print STDERR "\033[32m>>>------------>\033[0m Parse $h{3} regions as subset of one real region" if $h{3};
+                    print STDERR "\033[32m>>>------------>\033[0m Skip $xrg records for not located in the two real regions respectively" if $xrg;
+                }
+                print STDERR "\033[32m>>>------------>\033[0m Get $o final records out of $. raw records" if $o;
+            }
+        }
+    ' -- -parserealposi=$parserealposi -mismatchrate=$mismatchrate |\
+    sed '1i#ChrA\tStartA\tEndA\tChrB\tStartB\tEndB\tRepeatID\tRepeatLength\tStrandA\tStrandB\tRepeatType\tRepeatIdentity\tSeqID' > ${outpre}.Repeat_All.tsv
+    if [ $? -ne 0 ];then gst_err "Get final result failed: Non-zero exit"; exit 1;fi
+    if [[ "$keep" != "TRUE" ]];then
+        gst_rcd "Clean intermediate files ..."
+        rm -rf ${outpre}/
+    fi
+    if [ $? -ne 0 ];then gst_err "$0 failed: Non-zero exit";rm -f ${outpre}.done; exit 1;fi
+else
+    echo -e "\033[35m[WARNING]\033[0m --> Already done, skip running. Remove $PWD/${outpre}.done to force re-run." >&2
+fi
+gst_log "All Done! Final result: ${outpre}.Repeat_All.tsv"
+# <<<<<<<<<<<<<<<<<<<<<<<< MAIN <<<<<<<<<<<<<<<<<<<<<<<<
+
+# 0  chr
+# 1  start0
+# 2  end
+# 3  chr
+# 4  start0
+# 5  end
+# 6  id => outpre.D%09d => .[ATCG]+ for TSD in mite
+# 7  score => length
+# 8  strand
+# 9  strand
+# 10 type
+# 11 pid

@@ -1,0 +1,95 @@
+					EEEEEE                    EEEEEEE
+					EE   EE	                  EE
+					EE   EE   EEEEEE  EEEEEE  EE       EE   EE
+					EEEEE	  EE  EE  EE  EE  EEEEE     EE EE
+					EE  EE    EEEEEE  EEEEEE  EE         EEE
+					EE   EE   EE      EE      EE        EE EE
+					EE    EE  EEEEEE  EE      EEEEEEE  EE   EE
+					
+						    Installation Guide
+						   ====================
+						   
+Installation guide for Linux machines
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+Extract the tarfile by typing:
+
+	--------------------------
+=>	 "tar -xvzf RepEx.tar.gz"
+ 	--------------------------
+
+1) After extracting the tarfile into the desired installation directory,
+change to the "RepEx" directory.  Once in this directory, type:
+
+	--------------
+=>	 "make check"
+	--------------
+
+	This command will check for the necessary utilities, that the RepEx package
+	depends on. If you see no error messages, the check was successful.
+
+2) The following command will build the appropriate scripts and binaries in the corresponding
+directory.
+
+	----------------
+=>	 "make install" 
+	----------------
+
+3) To check, if RepEx is installed properly, type the following
+
+	-------------
+=>	 "make test"
+	-------------
+   
+4) To make RepEx accessible from different directories, simply add the full 
+RepEx directory path to your system PATH, or link the RepEx to your favorite 
+bin directory. 
+
+	Recommended step:-
+
+	a) In your .bashrc file located at your home directory, add the following lines
+
+	----------------------------------------------
+=> 	 PATH = bin_directory_of_RepEx:$PATH	
+	----------------------------------------------
+
+	### For instance, PATH=/home/user/Software/RepEx/src/bin:$PATH
+
+Please note that the 'make' command dynamically generates the 
+RepEx scripts with the appropriate paths, therefore if the RepEx directory 
+is moved after the 'make' command is issued, the program will fail to run.
+If the RepEx executables are needed in a directory other than the install directory, 
+it is recommended that the install directory be left untouched and its files linked 
+to the desired destination. An alternative would be to move the install directory 
+and reissue the 'make' command at the new location.
+
+
+Uninstallation
+==============
+
+	------------------				--------------
+=> 	 "make uninstall"		or 		 "make clean"
+	------------------				--------------
+   This will remove all binary executables from the base and bin directories. 
+   The original source files will remain unchanged,
+   thus reverting the package to its post-untar, pre-install state.
+   
+
+Installation guide for Mac machines
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1) As make is not readily available for Mac users, the Mac development kit (Xcode) must be downloaded and installed. This
+kit will include 'gcc', 'ar', and 'make' that are necessary for building RepEx.
+
+2) Follow the steps, as mentioned under "Installation guide for Linux machines"
+
+#####################################################################################################
+
+				  Thank you for doing Science !!!
+
+#####################################################################################################
+
+Please address queries and bug reports to: <satnamrsm@gmail.com> with RepEx as the subject heading.
+
+Last update: Jan 31, 2013

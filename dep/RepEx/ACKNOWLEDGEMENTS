@@ -1,0 +1,18 @@
+					EEEEEE                    EEEEEEE
+					EE   EE	                  EE
+					EE   EE   EEEEEE  EEEEEE  EE       EE   EE
+					EEEEE	  EE  EE  EE  EE  EEEEE     EE EE
+					EE  EE    EEEEEE  EEEEEE  EE         EEE
+					EE   EE   EE      EE      EE        EE EE
+					EE    EE  EEEEEE  EE      EEEEEEE  EE   EE
+					
+						     ACKNOWLEDGEMENTS
+						     ================
+
+RepEx uses MUMmer[1] for its local pairwise alignments. The authors gratefully acknowledge them.
+	
+Reference
+=========
+[1] Open source MUMmer 3.0 is described in "Versatile and open software for comparing large genomes." S. Kurtz, A. Phillippy, A.L. Delcher, M. Smoot, M. Shumway, C. Antonescu, and S.L. Salzberg, Genome Biology (2004), 5:R12.
+
+  

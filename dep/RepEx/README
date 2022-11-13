@@ -1,0 +1,88 @@
+					EEEEEE                    EEEEEEE
+					EE   EE	                  EE
+					EE   EE   EEEEEE  EEEEEE  EE       EE   EE
+					EEEEE	  EE  EE  EE  EE  EEEEE     EE EE
+					EE  EE    EEEEEE  EEEEEE  EE         EEE
+					EE   EE   EE      EE      EE        EE EE
+					EE    EE  EEEEEE  EE      EEEEEEE  EE   EE
+					
+						    General Instructions
+						   ======================
+Abstract
+========
+Genomic sequences are far from being random but are made up of systematically ordered and information rich patterns. These repeated sequence patterns have been vastly utilized for their fundamental importance in understanding the genome functioning and organization. To this end, a comprehensive toolkit, RepEx, has been developed which would extract all possible repeat (direct, inverted, everted and mirror) patterns from the given genomic DNA sequences. The tool kit can also be used to fetch the direct and inverted repeats present in the protein sequences. Further, RepEx is capable of extracting identical and gapped similar/degenerated repeats with a user defined spacer limits. The proposed toolkit is proved to be more robust and efficient compared to the existing methods.
+
+Usage
+=====
+
+repex [options]
+
+Program options
+---------------
+
+-m	Type of molecular sequence(s): DNA [n] or Protein [p] {Default: [n]}
+-t	Type of repeat to be extracted: Direct [d] or Inverted [i] or Palindrome [ip] or Mirror [m] or Everted [e] (Mirror and everted repeat doesn't exist in protein sequence(s), thus -t m or -t e will not work for protein sequence(s)) {Default: [i]}
+-l	Minimum length of repeats to be extracted [positive integers]. (Caution !! Any lower than around 15 can significantly increase the number of spurious matches and therefore burst up the runtime) {Default: [20]}
+-s	Spacer intervals i.e., the number of bases or residues between the repeat pattern and its copy. All [a] or Local [l] (within 100 bases) or Global [g] (outside 100 bases) or Manual (For manual option, enter your length (x) of spacers preceding with appropriate letter (greater: g, lesser: l, equal: e) -s [gx or lx or ex]) {Default: [l] for DNA and [a] for proteins}
+-c	Class of repeat to be extracted: Identical [i] or Degenerative [d] or both [b]. {Default: [i]}
+-f	Input file path.
+
+Example: repex -m n -t m -l 20 -s l50 -c b -f /home/User/Documents/fasta.seq
+
+The above example can be use to extract both identical and degenerative (-c b) mirror repeats (-t m) from DNA sequences (-m n) with minimum length of 20 (-l 20), where the spacer intervals should be less than 50 bases(-s l50) from file named fasta.seq located at /home/User/Documents.
+
+Installation Guide
+==================
+
+For installation, see INSTALL.
+
+SYSTEM REQUIREMENTS
+===================
+
+   The RepEx package requires the following to run successfully. In the
+absence of one or more of these utilities, RepEx may fail to run correctly. 
+Listed in parenthesis are the minimum versions required to run the
+RepEx package. These versions, or subsequent versions should assure the proper
+execution of RepEx.
+
+    - make (GNU make 3.79.1)
+    - perl (PERL     5.6.0)
+    - sh   (GNU sh   1.14.7)
+    - csh  (tcsh     6.10.00)
+    - g++  (GNU gcc  2.95.3)
+    - sed  (GNU sed  3.02)
+    - awk  (GNU awk  3.0.4)
+    - ar   (GNU ar   2.9.5)
+
+Repex can be ran almost on any Linux based operating systems, provided the above mentioned utilities are installed properly.
+
+   Sufficient memory and disk space are necessary, but required sizes vary
+with input size. Be aware of your disk and memory usage, because insufficient
+capacities will result in incorrect or missing output. Required resources
+differ depending on the input size, but in general 512 MB of RAM and 1 GB of
+disk space is sufficient.
+   It is possible to port the toolkit to any system with a C++ compiler but
+this has not been tested and will not be supported. In addition, you may need
+to alter the Makefile to direct 'make' to your native compiler and other
+system resources.
+   For Mac OSX, the Mac development kit must be downloaded and installed. This
+kit will include 'gcc', 'ar', and 'make' which are necessary for building
+RepEx. RepEx is not supported for any Mac operating system other than OSX.
+   For Windows users, Cygwin or other Unix-like environment and command-line interface
+for Microsoft Windows can be installed with the above mentioned utilities but
+this has not been tested and will not be supported. We apologies for the inconvenience.
+
+Availability 
+=============
+
+RepEx should be used only for pure academic purpose and commercial use is strictly prohibited.
+
+#####################################################################################################
+
+				  Thank you for doing Science !!!
+
+#####################################################################################################
+
+Please address queries and bug reports to: <satnamrsm@gmail.com> with "RepEx" as the subject heading.
+
+Last update: Jan 31, 2013
