@@ -99,6 +99,10 @@ NOTE:
 Author: Songtao Gui
 E-mail: songtaogui@sina.com
 ```
+**note:**
+
+Make sure your sequence ID **DO NOT contain `:`**.
+
 
 ## Output file
 
