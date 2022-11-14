@@ -188,8 +188,8 @@ while($array[$i])
 	if($array[$i] =~ /^>/)
 	{
 		$fasta_header = $array[$i];
-		open(MUM_INPUT,"> $i.sequence");
-		open(MUM_INPUT1,"> $i.sequence_c");
+		open(MUM_INPUT,"> $outpre.tmp");
+		open(MUM_INPUT1,"> $outpre.tmp_c");
 		print"$s";
 
 		$j=$i+1;
@@ -240,12 +240,12 @@ while($array[$i])
 				{
 					if($max ==1)
 					{
-						@mummer_output = `$sftwdir/identical -maxmatch -n -l $min_repeat_length -s -L $i.sequence $i.sequence_c`;
+						@mummer_output = `$sftwdir/identical -maxmatch -n -l $min_repeat_length -s -L $outpre.tmp $outpre.tmp_c`;
 					}
 
 					else
 					{
-						@mummer_output = `$sftwdir/identical -maxmatch -n -l $min_repeat_length -s -L $i.sequence $i.sequence_c`;
+						@mummer_output = `$sftwdir/identical -maxmatch -n -l $min_repeat_length -s -L $outpre.tmp $outpre.tmp_c`;
 					}
 
 					print OUTPUT $fasta_header if($class_of_repeat eq 'i' || $class_of_repeat eq 'b');
@@ -265,7 +265,7 @@ while($array[$i])
 								$p2_to	 = ($p2_from+($pat_len-1));
 								$cal1    = ($length-$p2_to)+1;	#print $length."\n";
 								$cal2    = ($length-$p2_from)+1;
-				###	Local
+								###	Local
 								if($spacer eq 'l')
 								{
 									if((($p1_from < $cal1) && ($p1_to < $cal1)) && ($p1_to+100 > $cal1))
@@ -289,7 +289,7 @@ while($array[$i])
 									}
 								}
 
-		###	Global
+								###	Global
 								if($spacer eq 'g')
 								{
 									if((($p1_from < $cal1) && ($p1_to < $cal1)) && ($p1_to+100 < $cal1))
@@ -312,7 +312,7 @@ while($array[$i])
 										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($cal1 to $cal2)\n";
 									}		
 								}
-		###	All
+								###	All
 								if($spacer eq 'a')
 								{
 									if((($p1_from < $cal1) && ($p1_to < $cal1)))
@@ -335,7 +335,7 @@ while($array[$i])
 										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($cal1 to $cal2)\n";
 									}
 								}
-		###	Manual (Greater)
+								###	Manual (Greater)
 								if($spacer=~/g(\d+)/)
 								{
 									$spacer_length=$1;
@@ -360,7 +360,7 @@ while($array[$i])
 										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($cal1 to $cal2)\n";
 									}
 								}
-		###	Manual (Lesser)
+								###	Manual (Lesser)
 								if($spacer=~/l(\d+)/)
 								{
 									$spacer_length=$1;
@@ -385,7 +385,7 @@ while($array[$i])
 										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($cal1 to $cal2)\n";
 									}
 								}
-		###	Manual (Equal)
+								###	Manual (Equal)
 								if($spacer=~/e(\d+)/)
 								{
 									$spacer_length=$1;
@@ -436,7 +436,7 @@ while($array[$i])
 								$p2_to	 = ($p2_from+($pat_len-1));
 								$cal1    = ($length-$p2_to)+1;	#print $length."\n";
 								$cal2    = ($length-$p2_from)+1;
-				###	Palindrome
+								###	Palindrome
 								if( ($p1_from == $cal1) )
 								{
 									$mummer_output[$v+1]=~/^(\w+)/;
@@ -468,7 +468,7 @@ while($array[$i])
 								$pat_len = $3;
 								$p1_to	 = ($p1_from+($pat_len-1));
 								$p2_to	 = ($p2_from+($pat_len-1));
-				###	Local
+								###	Local
 								if($spacer eq 'l')
 								{
 									if((($p1_from < $p2_from) && ($p1_to < $p2_from)) && ($p1_to+100 > $p2_from))
@@ -481,7 +481,7 @@ while($array[$i])
 										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($p2_from to $p2_to)\n";
 									}
 								}
-		###	Global
+								###	Global
 								if($spacer eq 'g')
 								{
 									if((($p1_from < $p2_from) && ($p1_to < $p2_from)) && ($p1_to+100 < $p2_from))
@@ -494,7 +494,7 @@ while($array[$i])
 										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($p2_from to $p2_to)\n";
 									}
 								}
-		###	All
+								###	All
 								if($spacer eq 'a')
 								{
 									if(($p1_from < $p2_from) && ($p1_to < $p2_from))
@@ -507,7 +507,7 @@ while($array[$i])
 										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($p2_from to $p2_to)\n";
 									}
 								}		
-		###	Manual (Greater)
+								###	Manual (Greater)
 								if($spacer =~ 'g(\d+)')
 								{
 									$spacer_length=$1;
@@ -521,7 +521,7 @@ while($array[$i])
 										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($p2_from to $p2_to)\n";
 									}
 								}
-		###	Manual (Lesser)
+								###	Manual (Lesser)
 								if($spacer =~ 'l(\d+)')
 								{
 									$spacer_length=$1;
@@ -535,7 +535,7 @@ while($array[$i])
 										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($p2_from to $p2_to)\n";
 									}
 								}			
-		###	Manual (Equal)
+								###	Manual (Equal)
 								if($spacer =~ 'e(\d+)')
 								{
 									$spacer_length=$1;
@@ -565,12 +565,12 @@ while($array[$i])
 				{
 					if($max ==1)
 					{
-						@mummer_output = `$sftwdir/identical -maxmatch -l $min_repeat_length -s -L $i.sequence $i.sequence_c`;
+						@mummer_output = `$sftwdir/identical -maxmatch -l $min_repeat_length -s -L $outpre.tmp $outpre.tmp_c`;
 					}
 
 					else
 					{
-						@mummer_output = `$sftwdir/identical -maxmatch -l $min_repeat_length -s -L $i.sequence $i.sequence_c`;
+						@mummer_output = `$sftwdir/identical -maxmatch -l $min_repeat_length -s -L $outpre.tmp $outpre.tmp_c`;
 					}
 
 					print OUTPUT $fasta_header if($class_of_repeat eq 'i' || $class_of_repeat eq 'b');
@@ -589,7 +589,7 @@ while($array[$i])
 								$p2_to	 = ($p2_from+($pat_len-1));
 								$cal1    = ($length-$p2_to)+1;	#print $length."\n";
 								$cal2    = ($length-$p2_from)+1;
-				###	Local
+								###	Local
 								if($spacer eq 'l')
 								{
 									if((($p1_from < $cal1) && ($p1_to < $cal1)) && ($p1_to+100 > $cal1))
@@ -605,7 +605,7 @@ while($array[$i])
 										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($cal1 to $cal2)\n";
 									}
 								}
-		###	Global
+								###	Global
 								if($spacer eq 'g')
 								{
 									if((($p1_from < $cal1) && ($p1_to < $cal1)) && ($p1_to+100 < $cal1))
@@ -621,7 +621,7 @@ while($array[$i])
 										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($cal1 to $cal2)\n";
 									}		
 								}
-		###	All
+								###	All
 								if($spacer eq 'a')
 								{
 									if( ($p1_from < $cal1) && ($p1_to < $cal1) )
@@ -637,7 +637,7 @@ while($array[$i])
 										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($cal1 to $cal2)\n";
 									}
 								}
-		###	Manual (Greater)
+								###	Manual (Greater)
 								if($spacer=~/g(\d+)/)
 								{
 									$spacer_length=$1;
@@ -654,7 +654,7 @@ while($array[$i])
 										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($cal1 to $cal2)\n";
 									}
 								}
-		###	Manual (Lesser)
+								###	Manual (Lesser)
 								if($spacer=~/l(\d+)/)
 								{
 									$spacer_length=$1;
@@ -671,7 +671,7 @@ while($array[$i])
 										print OUTPUT $pattern." ($p1_from to $p1_to)"."\t".$pattern_2." ($cal1 to $cal2)\n";
 									}
 								}
-		###	Manual (Equal)
+								###	Manual (Equal)
 								if($spacer=~/e(\d+)/)
 								{
 									$spacer_length=$1;
@@ -714,7 +714,7 @@ while($array[$i])
 								$p2_to	 = ($p2_from+($pat_len-1));
 								$cal1    = ($length-$p2_to)+1;	#print $length."\n";
 								$cal2    = ($length-$p2_from)+1;
-#Palindrome									
+								#Palindrome									
 								if( ($p1_from == $cal1) )
 								{
 									$mummer_output[$v+1]=~/^(\w+)/;
@@ -738,24 +738,24 @@ while($array[$i])
 				$reverse = "";				#print @mummer_output;
 				$sequence = "";
 
-				`rm -f $i.sequence $i.sequence_c` if ($class_of_repeat eq 'i');
+				`rm -f $outpre.tmp $outpre.tmp_c` if ($class_of_repeat eq 'i');
 
-###	Degenerate				
+				###	Degenerate					
 
 				if($class_of_repeat eq 'd' || $class_of_repeat eq 'b')
 
 				{
-					open(RepEx_gaps,">m.out");
+					open(RepEx_gaps,">$outpre.m.out");
 					print RepEx_gaps @mummer_output;
 					close RepEx_gaps;
 					@mummer_output = ();
-					`$sftwdir/gaps -l 50 -f .12 -s 600 < m.out > m.gaps`;
+					`$sftwdir/gaps -l 50 -f .12 -s 600 < $outpre.m.out > $outpre.m.gaps`;
 					
 					# `chmod 777 /home/httpd/html/RepEx/outputfile/del_dump`;
 
-					@combine_mums = `$sftwdir/similar -x -e .10 -W m.errorsgaps $i.sequence $i.sequence_c m.gaps`;
+					@combine_mums = `$sftwdir/similar -x -e .10 -W $outpre.m.errorsgaps $outpre.tmp $outpre.tmp_c $outpre.m.gaps`;
 
-					`rm -f m.gaps m.errorsgaps m.out`;
+					`rm -f $outpre.m.gaps $outpre.m.errorsgaps $outpre.m.out`;
 					print WRITE1 $fasta_header;
 					$c=0;
 					$count = 0;
@@ -774,12 +774,12 @@ while($array[$i])
 							$match=$pattern_length-$mismatch;
 							if($mismatch!=0)
 							{
-###	Mirror and Inverted
+									###	Mirror and Inverted
 								if(($type_of_repeat eq 'm' || $type_of_repeat eq 'i') && $marcomolecule eq 'n')
 								{
 									$cal1=($length-$p2_to)+1;
 									$cal2=($length-$p2_from)+1;
-###	Global
+									###	Global
 									if($spacer eq 'g')
 									{
 										if( ( ($p1_from < $cal1) && ($p1_to < $cal1) && ($p1_to+100 < $cal1) ) || ( ($p1_from > $cal2) && ($p1_to > $cal2) && ($p1_to > $cal2+100) ) )
@@ -788,7 +788,7 @@ while($array[$i])
 											$count++;
 										}
 									}
-###	Local
+									###	Local
 									if($spacer eq 'l')
 									{
 										if( ( ($p1_from < $cal1) && ($p1_to < $cal1) && ($p1_to+100 > $cal1) ) || ( ($p1_from > $cal2) && ($p1_to > $cal2) && ($p1_to < $cal2+100) ) )
@@ -797,7 +797,7 @@ while($array[$i])
 											$count++;
 										}
 									}
-###	All
+									###	All
 									if($spacer eq 'a')
 									{
 										if( ( ($p1_from < $cal1) && ($p1_to < $cal1) ) || ( ($p1_from > $cal2) && ($p1_to > $cal2) ) )
@@ -806,7 +806,7 @@ while($array[$i])
 											$count++;
 										}
 									}
-###	Manual (Global)
+									###	Manual (Global)
 									if($spacer=~/g(\d+)/)
 									{
 										$spacer_length=$1;
@@ -816,7 +816,7 @@ while($array[$i])
 											$count++;
 										}
 									}
-###	Manual (Local)
+									###	Manual (Local)
 									if($spacer=~/l(\d+)/)
 									{
 										$spacer_length=$1;
@@ -826,7 +826,7 @@ while($array[$i])
 											$count++;
 										}
 									}
-###	Manual (Equal)
+									###	Manual (Equal)
 									if($spacer=~/e(\d+)/)
 									{
 										$spacer_length=$1;
@@ -837,8 +837,8 @@ while($array[$i])
 										}
 									}
 								}
-###########################################################################################################									
-###	Everted
+									###########################################################################################################									
+									###	Everted
 								if($type_of_repeat eq 'e' && $marcomolecule eq 'n')
 								{
 									if($spacer eq 'g')
@@ -850,7 +850,7 @@ while($array[$i])
 										}
 									}
 
-###	Local
+									###	Local
 									if($spacer eq 'l')
 									{
 										if( ( ($p1_from < $p2_from) && ($p1_to < $p2_from) && ($p1_to+100 > $p2_from) ) || ( ($p1_from > $p2_to) && ($p1_to > $p2_to) && ($p1_to < $p2_to+100) ) )
@@ -860,7 +860,7 @@ while($array[$i])
 										}
 									}
 
-###	All
+									###	All
 									if($spacer eq 'a')
 									{
 										if( ( ($p1_from < $p2_from) && ($p1_to < $p2_from) ) || ( ($p1_from > $p2_to) && ($p1_to > $p2_to) ) )
@@ -869,7 +869,7 @@ while($array[$i])
 											$count++;		
 										}
 									}
-### Manual (Global)
+									### Manual (Global)
 									if($spacer=~/g(\d+)/)
 									{
 										$spacer_length=$1;
@@ -879,7 +879,7 @@ while($array[$i])
 											$count++;		
 										}
 									}
-### Manual (Local)
+									### Manual (Local)
 									if($spacer=~/l(\d+)/)
 									{
 										$spacer_length=$1;
@@ -889,7 +889,7 @@ while($array[$i])
 											$count++;		
 										}
 									}
-### Manual (Equal)
+									### Manual (Equal)
 									if($spacer=~/e(\d+)/)
 									{
 										$spacer_length=$1;
@@ -922,3 +922,5 @@ while($array[$i])
 	}
 	$i++;
 }
+
+`rm -f $outpre.tmp $outpre.tmp_c`;
